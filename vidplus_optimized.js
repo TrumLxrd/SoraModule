@@ -2,7 +2,7 @@
 // VidPlus.to Sora Module - Optimized Version
 // Follows exact patterns from working Sora modules
 
-const TMDB_API_KEY = "YOUR_TMDB_API_KEY"; // Replace with your TMDB API key
+const TMDB_API_KEY = "d9956abacedb5b43a16cc4864b26d451"; // Replace with your TMDB API key
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 
