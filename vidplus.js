@@ -3,7 +3,7 @@
 // This module integrates TMDB API for content discovery with VidPlus.to for streaming
 // Note: You'll need to get your own TMDB API key from https://www.themoviedb.org/settings/api
 
-const TMDB_API_KEY = "YOUR_TMDB_API_KEY"; // Replace with your actual TMDB API key
+const TMDB_API_KEY = "d9956abacedb5b43a16cc4864b26d451"; // Replace with your actual TMDB API key
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 const VIDPLUS_BASE_URL = "https://player.vidplus.to/embed";
