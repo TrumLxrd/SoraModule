@@ -1,0 +1,157 @@
+
+// VidPlus.to Sora Module - Optimized Version
+// Follows exact patterns from working Sora modules
+
+const TMDB_API_KEY = "YOUR_TMDB_API_KEY"; // Replace with your TMDB API key
+const TMDB_BASE_URL = "https://api.themoviedb.org/3";
+const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
+
+async function searchResults(keyword) {
+    try {
+        const encodedKeyword = encodeURIComponent(keyword);
+        const responseText = await fetchv2(`${TMDB_BASE_URL}/search/multi?api_key=${TMDB_API_KEY}&query=${encodedKeyword}`);
+        const data = await responseText.json();
+
+        console.log("Search data:", data);
+
+        const transformedResults = data.results
+            .filter(item => (item.media_type === 'movie' || item.media_type === 'tv') && item.poster_path)
+            .slice(0, 15)
+            .map(item => {
+                const title = item.media_type === 'movie' ? item.title : item.name;
+                const imageUrl = item.poster_path ? `${TMDB_IMAGE_BASE}${item.poster_path}` : '';
+
+                return {
+                    title: title,
+                    image: imageUrl,
+                    href: `vidplus://${item.media_type}/${item.id}`
+                };
+            });
+
+        console.log("Transformed search results:", transformedResults);
+        return JSON.stringify(transformedResults);
+
+    } catch (error) {
+        console.log('Search error:', error);
+        return JSON.stringify([{ title: 'Error', image: '', href: '' }]);
+    }
+}
+
+async function extractDetails(url) {
+    try {
+        const match = url.match(/vidplus:\/\/(movie|tv)\/(\d+)/);
+        if (!match) throw new Error("Invalid URL format");
+
+        const mediaType = match[1];
+        const tmdbId = match[2];
+
+        const response = await fetchv2(`${TMDB_BASE_URL}/${mediaType}/${tmdbId}?api_key=${TMDB_API_KEY}`);
+        const data = await response.json();
+
+        console.log("Details data:", data);
+
+        let description = data.overview || 'No description available';
+        let aliases, airdate;
+
+        if (mediaType === 'movie') {
+            aliases = `Runtime: ${data.runtime || 'Unknown'} minutes`;
+            airdate = `Released: ${data.release_date || 'Unknown'}`;
+        } else {
+            aliases = `Seasons: ${data.number_of_seasons || 'Unknown'}`;
+            airdate = `First Air Date: ${data.first_air_date || 'Unknown'}`;
+        }
+
+        const transformedResults = [{
+            description: description,
+            aliases: aliases,
+            airdate: airdate
+        }];
+
+        console.log("Transformed details:", transformedResults);
+        return JSON.stringify(transformedResults);
+
+    } catch (error) {
+        console.log('Details error:', error);
+        return JSON.stringify([{
+            description: 'Error loading description',
+            aliases: 'Unknown',
+            airdate: 'Unknown'
+        }]);
+    }
+}
+
+async function extractEpisodes(url) {
+    try {
+        const match = url.match(/vidplus:\/\/(movie|tv)\/(\d+)/);
+        if (!match) throw new Error("Invalid URL format");
+
+        const mediaType = match[1];
+        const tmdbId = match[2];
+
+        if (mediaType === 'movie') {
+            // For movies, return a single entry
+            const episodes = [{
+                href: `https://player.vidplus.to/embed/movie/${tmdbId}`,
+                number: "1"
+            }];
+            console.log("Movie episodes:", episodes);
+            return JSON.stringify(episodes);
+        }
+
+        // For TV shows, get season and episode information
+        const showResponse = await fetchv2(`${TMDB_BASE_URL}/tv/${tmdbId}?api_key=${TMDB_API_KEY}`);
+        const showData = await showResponse.json();
+
+        console.log("TV Show data:", showData);
+
+        const episodes = [];
+        const numSeasons = Math.min(showData.number_of_seasons || 1, 10); // Limit to 10 seasons for performance
+
+        for (let season = 1; season <= numSeasons; season++) {
+            try {
+                const seasonResponse = await fetchv2(`${TMDB_BASE_URL}/tv/${tmdbId}/season/${season}?api_key=${TMDB_API_KEY}`);
+                const seasonData = await seasonResponse.json();
+
+                if (seasonData.episodes && seasonData.episodes.length > 0) {
+                    seasonData.episodes.forEach(episode => {
+                        episodes.push({
+                            href: `https://player.vidplus.to/embed/tv/${tmdbId}/${season}/${episode.episode_number}`,
+                            number: season.toString()
+                        });
+                    });
+                }
+            } catch (seasonError) {
+                console.log(`Season ${season} error:`, seasonError);
+                // Fallback: assume 20 episodes per season
+                for (let ep = 1; ep <= 20; ep++) {
+                    episodes.push({
+                        href: `https://player.vidplus.to/embed/tv/${tmdbId}/${season}/${ep}`,
+                        number: season.toString()
+                    });
+                }
+                break; // Don't continue if we hit an error
+            }
+        }
+
+        console.log("TV episodes found:", episodes.length);
+        return JSON.stringify(episodes);
+
+    } catch (error) {
+        console.log('Episodes error:', error);
+        return JSON.stringify([]);
+    }
+}
+
+async function extractStreamUrl(url) {
+    try {
+        console.log("Extracting stream from:", url);
+
+        // VidPlus.to URLs are already in the correct format for embedding
+        // Just return the URL as-is since Sora will handle the embedding
+        return url;
+
+    } catch (error) {
+        console.log('Stream extraction error:', error);
+        return null;
+    }
+}
