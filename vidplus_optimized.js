@@ -146,8 +146,36 @@ async function extractStreamUrl(url) {
     try {
         console.log("Extracting stream from:", url);
 
-        // VidPlus.to URLs are already in the correct format for embedding
-        // Just return the URL as-is since Sora will handle the embedding
+        if (!url) return null;
+
+        // Only enforce for VidPlus embed links hosted on player.vidplus.to
+        // Examples we support:
+        //  - https://player.vidplus.to/embed/movie/{tmdbId}
+        //  - https://player.vidplus.to/embed/tv/{tmdbId}/{season}/{episode}
+        const embedHost = 'player.vidplus.to/embed/';
+        if (url.includes(embedHost)) {
+            try {
+                // Use the URL API to safely manipulate query params
+                const parsed = new URL(url);
+                // Ensure server=1 is present (adds or replaces existing value)
+                parsed.searchParams.set('server', '1');
+                return parsed.toString();
+            } catch (e) {
+                // Fallback for environments where URL might fail or for malformed URLs
+                if (url.indexOf('?') === -1) {
+                    return url + '?server=1';
+                }
+
+                // If a server param exists, replace its value with 1, otherwise append &server=1
+                if (/([?&])server=[^&]*/.test(url)) {
+                    return url.replace(/([?&])server=[^&]*/, '$1server=1');
+                }
+
+                return url + '&server=1';
+            }
+        }
+
+        // Non-VidPlus URLs are returned unchanged
         return url;
 
     } catch (error) {
