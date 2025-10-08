@@ -6,6 +6,24 @@ const TMDB_API_KEY = "d9956abacedb5b43a16cc4864b26d451"; // Replace with your TM
 const TMDB_BASE_URL = "https://api.themoviedb.org/3";
 const TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500";
 
+// Attempt to load a global extractor library if present locally or installed as a package.
+// This is optional: if the user has copied `global_extractor.js` next to this file
+// or installed `sora-global-extractor`, we'll use it to turn page/embed URLs into
+// direct stream URLs (.m3u8, mp4, etc.). If not available, the module will continue
+// to operate without it and fall back to existing behavior.
+let globalExtractorLib = null;
+try {
+    // Prefer a local file named `global_extractor.js` placed in the same folder
+    globalExtractorLib = require('./global_extractor');
+} catch (e1) {
+    try {
+        // Fall back to a package named `sora-global-extractor` if installed
+        globalExtractorLib = require('sora-global-extractor');
+    } catch (e2) {
+        globalExtractorLib = null;
+    }
+}
+
 async function searchResults(keyword) {
     try {
         const encodedKeyword = encodeURIComponent(keyword);
@@ -175,7 +193,59 @@ async function extractStreamUrl(url) {
             }
         }
 
-        // Non-VidPlus URLs are returned unchanged
+        // If a global extractor library is available, try to extract a direct stream URL.
+        if (globalExtractorLib) {
+            try {
+                const extractorFn = globalExtractorLib.multiExtractor || globalExtractorLib.globalExtractor || globalExtractorLib.extract || null;
+                if (typeof extractorFn === 'function') {
+                    // The extractor functions are generally async
+                    const extractionResult = await extractorFn(url);
+
+                    // extractionResult can be many shapes. Try to find a direct URL (m3u8, mp4, etc.).
+                    const candidate = (function findStream(obj) {
+                        if (!obj) return null;
+                        if (typeof obj === 'string') {
+                            if (/\.m3u8($|\?|#)|\.mp4($|\?|#)/i.test(obj)) return obj;
+                            return null;
+                        }
+                        if (Array.isArray(obj)) {
+                            for (const item of obj) {
+                                const found = findStream(item);
+                                if (found) return found;
+                            }
+                            return null;
+                        }
+                        if (typeof obj === 'object') {
+                            // common keys
+                            const keys = [ 'url', 'file', 'src', 'stream', 'link' ];
+                            for (const k of keys) {
+                                if (obj[k]) {
+                                    const found = findStream(obj[k]);
+                                    if (found) return found;
+                                }
+                            }
+                            // deep search
+                            for (const k in obj) {
+                                if (!Object.prototype.hasOwnProperty.call(obj, k)) continue;
+                                const found = findStream(obj[k]);
+                                if (found) return found;
+                            }
+                        }
+                        return null;
+                    })(extractionResult);
+
+                    if (candidate) {
+                        // Return the direct media URL for Sora playback
+                        return candidate;
+                    }
+                }
+            } catch (extractErr) {
+                console.log('Global extractor error:', extractErr);
+                // fall through and return the original URL as a last resort
+            }
+        }
+
+        // Non-VidPlus URLs are returned unchanged (or original when extractor not available)
         return url;
 
     } catch (error) {
